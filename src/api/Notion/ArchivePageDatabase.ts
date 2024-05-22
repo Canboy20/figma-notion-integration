@@ -12,8 +12,6 @@ export async function archivePageDatabase(notionToken: string, pageId: any) {
         archived: true
     })
 
-    //Print the new database response
-    console.log(page)
 
     return page;
 
