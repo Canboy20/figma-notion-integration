@@ -11,9 +11,6 @@ export async function updatePageDatabase(notionToken: string, pageId: any, prope
         "properties": properties
     })
 
-    //Print the new database response
-    console.log(page)
-
     return page;
 
 }

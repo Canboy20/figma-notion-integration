@@ -11,9 +11,18 @@ import { addPageToDatabase } from "./api/Notion/AddPageToDatabase"
 import { NotionTokenPage } from "./objects/NotionTokenPage"
 import { DatabaseFieldTypes } from "./constants/Notion/DatabaseFieldTypes"
 import express, { Express, NextFunction, Request, Response } from "express";
+import cors from "cors"
 import dotenv from "dotenv";
 import { figmaVariableObjectToNotionDatabasePageObject } from "./map/FigmaVariableObjectToNotionVariableObject";
 import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { getFileComponents } from "./api/Figma/GetFileComponents";
+import { getFileComponentSets } from "./api/Figma/GetFileComponentSets";
+import { getProjectFiles } from "./api/Figma/GetProjectFiles";
+import { ErrorData } from "./objects/ErrorData";
+import { ApiError } from "./objects/ApiError";
+import { getFileStyles } from "./api/Figma/GetFileStyles";
+import { getLibraryUsagesAnalytics } from "./api/Figma/GetLibraryUsagesAnalytics";
+import { getLibraryActionsAnalytics } from "./api/Figma/GetLibraryActionsAnalytics";
 
 dotenv.config();
 
@@ -42,7 +51,7 @@ async function main() {
     console.log("Got response:", response);*/
 }
 
-app.get("/", (_req: Request, res: Response) => {
+app.get("/", cors(), (_req: Request, res: Response) => {
   res.send('Hello World!')
 })
 
@@ -51,7 +60,7 @@ const listener = app.listen(port, () => {
 })
 
 
-app.get("/getFigmaDesignTokens", async (req: Request, res: Response, next: NextFunction) => {
+app.get("/getFigmaDesignTokens", cors(), async (req: Request, res: Response, next: NextFunction) => {
 
   //Fetch variables from FIGMA
   const figmaToken = process.env.FIGMA_KEY
@@ -73,6 +82,262 @@ app.get("/getFigmaDesignTokens", async (req: Request, res: Response, next: NextF
   }
 
 });
+
+
+app.get("/getFigmaFileComponents", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  //Fetch components from FIGMA
+  const figmaToken = process.env.FIGMA_KEY
+  if (!figmaToken) {
+    return next(new Error("Figma key UNDEFINED"));
+  }
+
+  let figmaPage = req.query.figmaPage;
+  if (!figmaPage) {
+    return next(new Error("Figma page is required"));
+  }
+
+  try {
+
+    const fetchedUserData = await getFileComponents(baseUrl, figmaPage, getFigmaHeader(figmaToken))
+    return res.send({ data: fetchedUserData });
+
+  } catch (err) {
+
+    if (err instanceof ApiError) {
+      return res.status(err.getStatusCode()).json({ message: err.getMessage() });
+    }
+
+    next(err);
+  }
+
+});
+
+app.get("/getLibraryActionsAnalytics", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  //Fetch components from FIGMA
+  const figmaToken = process.env.FIGMA_KEY
+  if (!figmaToken) {
+    return next(new Error("Figma key UNDEFINED"));
+  }
+
+  let figmaLibraryFileKey = req.query.libraryFileKey;
+  if (!figmaLibraryFileKey) {
+    return next(new Error("Figma library file key (libraryFileKey) query is required"));
+  }
+
+  let figmaGroupBy = req.query.groupBy;
+  if (!figmaGroupBy) {
+    return next(new Error("Figma group by (groupBy) query is required"));
+  }
+
+  try {
+
+    const fetchedUserData = await getLibraryActionsAnalytics(baseUrl, figmaLibraryFileKey, figmaGroupBy, getFigmaHeader(figmaToken))
+    return res.send({ data: fetchedUserData });
+
+  } catch (err) {
+
+    if (err instanceof ApiError) {
+      return res.status(err.getStatusCode()).json({ message: err.getMessage() });
+    }
+
+    next(err);
+  }
+
+});
+
+app.get("/getLibraryUsagesAnalytics", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  //Fetch components from FIGMA
+  const figmaToken = process.env.FIGMA_KEY
+  if (!figmaToken) {
+    return next(new Error("Figma key UNDEFINED"));
+  }
+
+  let figmaLibraryFileKey = req.query.libraryFileKey;
+  if (!figmaLibraryFileKey) {
+    return next(new Error("Figma library file key (libraryFileKey) query is required"));
+  }
+
+  let figmaGroupBy = req.query.groupBy;
+  if (!figmaGroupBy) {
+    return next(new Error("Figma group by (groupBy) query is required"));
+  }
+
+  try {
+
+    const fetchedUserData = await getLibraryUsagesAnalytics(baseUrl, figmaLibraryFileKey, figmaGroupBy, getFigmaHeader(figmaToken))
+    return res.send({ data: fetchedUserData });
+
+  } catch (err) {
+
+    if (err instanceof ApiError) {
+      return res.status(err.getStatusCode()).json({ message: err.getMessage() });
+    }
+
+    next(err);
+  }
+
+});
+
+
+
+app.get("/design-system/components-documentation/:key", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  var componentKey = req.params.key;
+  if (!componentKey) {
+    return next(new Error("Component key UNDEFINED"));
+  }
+
+  const notion = new Client({ auth: process.env.NOTION_KEY });
+  const pageId = process.env.NOTION_COMPONENTS_DOCUMENTATION_LINKS_PAGE_ID as string
+
+  try {
+
+    const newDb = await notion.databases.query({
+      database_id: pageId,
+      "filter": {
+        "property": "Component Key",
+        "rich_text": {
+          "contains": componentKey
+        }
+      }
+    })
+    console.log("Component documentation " + JSON.stringify(newDb));
+    res.json({ message: "success!", data: newDb })
+
+  } catch (error) {
+
+    next(error);
+
+  }
+
+});
+
+
+
+app.get("/design-system/components-code-availability/:key", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  var componentKey = req.params.key;
+  if (!componentKey) {
+    return next(new Error("Component key UNDEFINED"));
+  }
+
+  const notion = new Client({ auth: process.env.NOTION_KEY });
+  const pageId = process.env.NOTION_COMPONENTS_DOCUMENTATION_LINKS_PAGE_ID as string
+
+  try {
+    const newDb = await notion.databases.query({
+      database_id: pageId,
+      "filter": {
+        "property": "Component Key",
+        "rich_text": {
+          "contains": componentKey
+        }
+      }
+    })
+
+    res.json({ message: "success!", data: newDb })
+
+  } catch (error) {
+
+    res.json({ message: "error", error })
+
+  }
+
+});
+
+
+app.get("/getFigmaFileComponentSets", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  //Fetch components from FIGMA
+  const figmaToken = process.env.FIGMA_KEY
+  if (!figmaToken) {
+    return next(new Error("Figma key UNDEFINED"));
+  }
+
+  let figmaPage = req.query.figmaPage;
+  if (!figmaPage) {
+    return next(new Error("Figma page is required"));
+  }
+
+  try {
+
+    const fetchedUserData = await getFileComponentSets(baseUrl, figmaPage, getFigmaHeader(figmaToken));
+    return res.send(fetchedUserData);
+
+  } catch (err) {
+
+    if (err instanceof ApiError) {
+      return res.status(err.getStatusCode()).json({ message: err.getMessage() });
+    }
+
+    next(err);
+  }
+
+});
+
+
+app.get("/getFigmaFileStyles", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  //Fetch components from FIGMA
+  const figmaToken = process.env.FIGMA_KEY
+  if (!figmaToken) {
+    return next(new Error("Figma key UNDEFINED"));
+  }
+
+  let figmaFileKey = req.query.figmaFileKey;
+  if (!figmaFileKey) {
+    return next(new Error("Figma file key is required"));
+  }
+
+  try {
+
+    const fetchedUserData = await getFileStyles(baseUrl, figmaFileKey, getFigmaHeader(figmaToken));
+    return res.send(fetchedUserData);
+
+  } catch (err) {
+
+    if (err instanceof ApiError) {
+      return res.status(err.getStatusCode()).json({ message: err.getMessage() });
+    }
+
+    next(err);
+  }
+
+});
+
+
+app.get("/getFigmaProjectFiles", cors(), async (req: Request, res: Response, next: NextFunction) => {
+
+  //Fetch components from FIGMA
+  const figmaToken = process.env.FIGMA_KEY
+  if (!figmaToken) {
+    return next(new Error("Figma key UNDEFINED"));
+  }
+
+  let projectId = req.query.projectId;
+  if (!projectId) {
+    return next(new Error("Project Id is required"));
+  }
+
+  try {
+
+    const fetchedUserData = await getProjectFiles(baseUrl, projectId, getFigmaHeader(figmaToken));
+    return res.send(fetchedUserData);
+
+  } catch (err) {
+
+    if (err instanceof ApiError) {
+      return res.status(err.getStatusCode()).json({ message: err.getMessage() });
+    }
+
+    next(err);
+  }
+
+});
+
 
 
 
@@ -102,7 +367,7 @@ app.get("/getNotionDesignTokens", async (req: Request, res: Response, next: Next
 });
 
 
-app.get("/getFigmaFileNodes", async (req: Request, res: Response, next: NextFunction) => {
+app.get("/getFigmaFileNodes", cors(), async (req: Request, res: Response, next: NextFunction) => {
 
   //Fetch variables from FIGMA
   const figmaToken = process.env.FIGMA_KEY
@@ -115,10 +380,14 @@ app.get("/getFigmaFileNodes", async (req: Request, res: Response, next: NextFunc
     return next(new Error("Figma page is required"));
   }
 
+  let ids = req.query.ids;
+  if (!ids) {
+    return next(new Error("Node id is required"));
+  }
+
   try {
-    const fetchedUserData = await getVariables(baseUrl, figmaPage, getFigmaHeader(figmaToken))
-    //let filteredUserData = fetchedUserData.filter((user) => user.id === parseInt(id as string));
-    return res.status(200).send({ data: fetchedUserData });
+    const fetchedUserData = await getFileNodes(baseUrl, figmaPage, getFigmaHeader(figmaToken), ids)
+    return res.status(200).send({ fetchedUserData });
   } catch (err) {
     next(err);
   }
@@ -149,8 +418,40 @@ app.patch("/updateNotionPageDatabase", async (req: Request, res: Response, next:
 });
 
 
+app.get("/getProjectsMappedToLibrary", cors(), async (req: Request, res: Response, next: NextFunction) => {
 
-app.get("/syncNotionTokensWithFigmaTokens", async (req: Request, res: Response, next: NextFunction) => {
+  var libraryId = req.query.libraryId;
+  if (!libraryId) {
+    return next(new Error("LibraryId is UNDEFINED"));
+  }
+
+  const notion = new Client({ auth: process.env.NOTION_KEY });
+  const pageId = process.env.NOTION_LIBRARY_PROJECTS_MAPPING_PAGE_ID as string
+
+  try {
+
+    const newDb = await notion.databases.query({
+      database_id: pageId,
+      "filter": {
+        "property": "LibraryKey",
+        "rich_text": {
+          "contains": libraryId.toString()
+        }
+      }
+    })
+
+    res.json({ message: "success!", data: newDb })
+
+  } catch (error) {
+
+    next(error);
+
+  }
+
+});
+
+
+app.get("/syncNotionTokensWithFigmaTokens", cors(), async (req: Request, res: Response, next: NextFunction) => {
 
   //Fetch variables from FIGMA
   const figmaToken = process.env.FIGMA_KEY

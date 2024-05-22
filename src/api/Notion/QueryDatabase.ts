@@ -10,8 +10,6 @@ export async function queryDatabase(notionToken: string, databaseId: any, filter
         "database_id": databaseId
     })
 
-    //Print the new database response
-    console.log(page)
 
     return page
 

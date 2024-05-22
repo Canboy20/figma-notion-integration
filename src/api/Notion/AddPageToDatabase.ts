@@ -6,7 +6,6 @@ export async function addPageToDatabase(notionToken: string, databaseId: any, pr
         auth: notionToken,
     })
 
-
     const page = await notion.pages.create({
         parent: {
             database_id: databaseId,
@@ -14,7 +13,5 @@ export async function addPageToDatabase(notionToken: string, databaseId: any, pr
         properties: properties,
     })
 
-    //Print the new database response
-    //console.log(page)
-    console.log("Token added to Notion Database")
+
 }
